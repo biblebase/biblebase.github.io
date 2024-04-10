@@ -497,9 +497,9 @@
 
             const verseKey = `${bookIndex}/${chapter}/${verse}`;
             loadDiv('verseData', `html/${verseKey}.htm`, function () {
+              location.hash = `#${verseKey}`;
               loadVerseData();
               window.verseClicked = true;
-              location.hash = `#${verseKey}`;
             });
           })
         });
@@ -652,6 +652,25 @@
 
         setTitles();
         addWordControls();
+
+        loadSermons(location.hash, sermons => {
+          document.getElementById('sermon').innerHTML = sermons.map( sermon => {
+            const links = [];
+            if (sermon.audio) links.push(`<a href="${ sermon.audio }">audio</a>`);
+            if (sermon.notes) links.push(`<a href="${ sermon.notes }">notes</a>`);
+            if (sermon.video) links.push(`<a href="${ sermon.video }">video</a>`);
+            return `
+              <h3>${ sermon.title }</h3>
+              <div class="block">
+              <author>${ sermon.preacher }</author>
+              <date>${ sermon.date }</date>
+              <p class="verses">${ sermon.passages }</p>
+              <p>${ links.join(' | ') }</p>
+              </div>
+            `
+          }).join('');
+          console.log(location.hash, '-', sermons.length, 'sermons loaded');
+        });
       }
 
       window.onhashchange = window.onload = function () {
@@ -695,7 +714,7 @@
       const workerUrl = "./assets/sqlite.worker.js";
       const wasmUrl = "./sql-wasm.wasm";
 
-      async function load() {
+      async function loadSermons(path, cb) {
         const worker = await createDbWorker(
           [
             {
@@ -711,12 +730,17 @@
           wasmUrl.toString()
         );
 
-        const result = await worker.db.query(`select * from mytable where foo like "英%"`);
-
-        console.log( result );
+        sql = `
+          select title, preacher, date, passages, audio, notes, video
+          from sermons s
+            inner join sermon_passages sp
+              on s.id = sp.sermon_id
+          where sp.passage = '${ path }'
+          order by date desc;
+        `
+        const result = await worker.db.query(sql);
+        cb(result);
       }
-
-      load();
     </script>
   </body>
 </html>
